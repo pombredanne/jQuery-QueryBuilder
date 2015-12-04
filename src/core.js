@@ -34,7 +34,7 @@ QueryBuilder.prototype.init = function($el, options) {
     
     // translations : english << 'lang_code' << custom
     if (QueryBuilder.regional['en'] === undefined) {
-        Utils.error('"i18n/en.js" not loaded.');
+        Utils.error('Config', '"i18n/en.js" not loaded.');
     }
     this.lang = $.extendext(true, 'replace', {}, QueryBuilder.regional['en'], QueryBuilder.regional[this.settings.lang_code], this.settings.lang);
     
@@ -75,20 +75,21 @@ QueryBuilder.prototype.init = function($el, options) {
 
 /**
  * Checks the configuration of each filter
+ * @throws ConfigError
  */
 QueryBuilder.prototype.checkFilters = function(filters) {
     var definedFilters = [];
 
     if (!filters || filters.length === 0) {
-        Utils.error('Missing filters list');
+        Utils.error('Config', 'Missing filters list');
     }
 
     filters.forEach(function(filter, i) {
         if (!filter.id) {
-            Utils.error('Missing filter {0} id', i);
+            Utils.error('Config', 'Missing filter {0} id', i);
         }
         if (definedFilters.indexOf(filter.id) != -1) {
-            Utils.error('Filter "{0}" already defined', filter.id);
+            Utils.error('Config', 'Filter "{0}" already defined', filter.id);
         }
         definedFilters.push(filter.id);
 
@@ -96,14 +97,14 @@ QueryBuilder.prototype.checkFilters = function(filters) {
             filter.type = 'string';
         }
         else if (!QueryBuilder.types[filter.type]) {
-            Utils.error('Invalid type "{0}"', filter.type);
+            Utils.error('Config', 'Invalid type "{0}"', filter.type);
         }
 
         if (!filter.input) {
             filter.input = 'text';
         }
         else if (typeof filter.input != 'function' && QueryBuilder.inputs.indexOf(filter.input) == -1) {
-            Utils.error('Invalid input "{0}"', filter.input);
+            Utils.error('Config', 'Invalid input "{0}"', filter.input);
         }
 
         if (!filter.field) {
@@ -128,7 +129,7 @@ QueryBuilder.prototype.checkFilters = function(filters) {
         switch (filter.input) {
             case 'radio': case 'checkbox':
                 if (!filter.values || filter.values.length < 1) {
-                    Utils.error('Missing filter "{0}" values', filter.id);
+                    Utils.error('Config', 'Missing filter "{0}" values', filter.id);
                 }
                 break;
 
@@ -139,7 +140,7 @@ QueryBuilder.prototype.checkFilters = function(filters) {
                     }
                     Utils.iterateOptions(filter.values, function(key, val) {
                         if (key == filter.placeholder_value) {
-                            Utils.error('Placeholder of filter "{0}" overlaps with one of its values', filter.id);
+                            Utils.error('Config', 'Placeholder of filter "{0}" overlaps with one of its values', filter.id);
                         }
                     });
                 }
@@ -247,30 +248,43 @@ QueryBuilder.prototype.bindEvents = function() {
             }
         },
         'update': function(e, node, field, value, oldValue) {
-            switch (field) {
-                case 'error':
-                    that.displayError(node);
-                    break;
+            if (node instanceof Rule) {
+                switch (field) {
+                    case 'error':
+                        that.displayError(node);
+                        break;
 
-                case 'condition':
-                    that.updateGroupCondition(node);
-                    break;
+                    case 'flags':
+                        that.applyRuleFlags(node);
+                        break;
 
-                case 'filter':
-                    that.updateRuleFilter(node);
-                    break;
+                    case 'filter':
+                        that.updateRuleFilter(node);
+                        break;
 
-                case 'operator':
-                    that.updateRuleOperator(node, oldValue);
-                    break;
+                    case 'operator':
+                        that.updateRuleOperator(node, oldValue);
+                        break;
 
-                case 'flags':
-                    that.applyRuleFlags(node);
-                    break;
+                    case 'value':
+                        that.updateRuleValue(node);
+                        break;
+                }
+            }
+            else {
+                switch (field) {
+                    case 'error':
+                        that.displayError(node);
+                        break;
 
-                case 'value':
-                    that.updateRuleValue(node);
-                    break;
+                    case 'flags':
+                        that.applyGroupFlags(node);
+                        break;
+
+                    case 'condition':
+                        that.updateGroupCondition(node);
+                        break;
+                }
             }
         }
     });
@@ -500,7 +514,7 @@ QueryBuilder.prototype.createRuleInput = function(rule) {
 
     $valueContainer.show();
 
-    $inputs.on('change', function() {
+    $inputs.on('change ' + (filter.input_event || ''), function() {
         that.status.updating_value = true;
         rule.value = that.getRuleValue(rule);
         that.status.updating_value = false;
@@ -578,9 +592,8 @@ QueryBuilder.prototype.updateRuleValue = function(rule) {
 /**
  * Change rules properties depending on flags.
  * @param rule {Rule}
- * @param readonly {boolean}
  */
-QueryBuilder.prototype.applyRuleFlags = function(rule, readonly) {
+QueryBuilder.prototype.applyRuleFlags = function(rule) {
     var flags = rule.flags;
 
     if (flags.filter_readonly) {
@@ -597,6 +610,24 @@ QueryBuilder.prototype.applyRuleFlags = function(rule, readonly) {
     }
 
     this.trigger('afterApplyRuleFlags', rule);
+};
+
+/**
+ * Change group properties depending on flags.
+ * @param group {Group}
+ */
+QueryBuilder.prototype.applyGroupFlags = function(group) {
+    var flags = group.flags;
+    
+    if (flags.condition_readonly) {
+        group.$el.find('>' + Selectors.condition_container + ' .btn').addClass('disabled');
+        group.$el.find('>' + Selectors.group_condition).prop('disabled', true);
+    }
+    if (flags.no_delete) {
+        group.$el.find(Selectors.delete_group).remove();
+    }
+    
+    this.trigger('afterApplyGroupFlags', group);
 };
 
 /**

@@ -170,8 +170,43 @@ $(function(){
 
         assert.rulesMatch(
             $b.queryBuilder('getRules'),
-            rules_after_ui_events,
+            {
+                condition: 'OR',
+                rules: [{
+                    id: 'name',
+                    operator: 'not_equal',
+                    value: 'foo'
+                }]
+            },
             'Should return correct rules after UI events'
+        );
+
+        $b.queryBuilder('destroy');
+
+        $b.queryBuilder({
+            filters: [{
+                id: 'name',
+                label: 'Name',
+                type: 'string',
+                input_event: 'custom.evt'
+            }]
+        });
+
+        $('[name=builder_rule_0_filter]').val('name').trigger('change');
+        $('[name=builder_rule_0_operator]').val('equal').trigger('change');
+        $('[name=builder_rule_0_value_0]').val('bar').trigger('custom.evt');
+
+        assert.rulesMatch(
+            $b.queryBuilder('getRules'),
+            {
+                condition: 'AND',
+                rules: [{
+                    id: 'name',
+                    operator: 'equal',
+                    value: 'bar'
+                }]
+            },
+            'Should return correct rules after UI events with custom change event'
         );
     });
 
@@ -180,9 +215,41 @@ $(function(){
      */
     QUnit.test('Change operators', function(assert) {
         $b.queryBuilder({
-            filters: filters_for_custom_operators,
-            rules: rules_for_custom_operators,
-            operators: custom_operators
+            filters: [{
+                id: 'name',
+                type: 'string'
+            }, {
+                id: 'price',
+                type: 'double'
+            }, {
+                id: 'release',
+                type: 'date',
+                operators: ['before', 'equal', 'after']
+            }],
+            rules: {
+                condition: 'AND',
+                rules: [{
+                    id: 'name',
+                    operator: 'equal',
+                    value: 'foo'
+                }, {
+                    id: 'price',
+                    operator: 'less',
+                    value: 10
+                }, {
+                    id: 'release',
+                    operator: 'before',
+                    value: '1995-5-1'
+                }]
+            },
+            operators: [
+                {type: 'equal',         nb_inputs: 1, apply_to: ['string']},
+                {type: 'not_equal', nb_inputs: 1,    apply_to: ['string']},
+                {type: 'less',            nb_inputs: 1,    apply_to: ['number']},
+                {type: 'greater',     nb_inputs: 1,    apply_to: ['number']},
+                {type: 'before',        nb_inputs: 1,    apply_to: ['datetime']},
+                {type: 'after',         nb_inputs: 1,    apply_to: ['datetime']}
+            ]
         });
 
         assert.optionsMatch(
@@ -221,16 +288,32 @@ $(function(){
 
         $b.queryBuilder('destroy');
 
+        var rules = {
+            condition: 'NAND',
+            rules: [{
+                id: 'name',
+                operator: 'equal',
+                value: 'foo'
+            }, {
+                condition: 'XOR',
+                rules: [{
+                    id: 'name',
+                    operator: 'equal',
+                    value: 'bar'
+                }]
+            }]
+        };
+
         $b.queryBuilder({
             filters: basic_filters,
-            rules: rules_for_custom_conditions,
+            rules: rules,
             conditions: ['NAND', 'XOR'],
             default_condition: 'NAND'
         });
 
         assert.rulesMatch(
             $b.queryBuilder('getRules'),
-            rules_for_custom_conditions,
+            rules,
             'Should return correct rules'
         );
 
@@ -253,7 +336,13 @@ $(function(){
     QUnit.test('Change icons', function(assert) {
         $b.queryBuilder({
             filters: basic_filters,
-            icons: icons
+            icons: {
+                add_group: 'fa fa-plus-circle',
+                add_rule: 'fa fa-plus',
+                remove_rule: 'fa fa-times',
+                remove_group: 'fa fa-times',
+                sort: 'fa fa-sort'
+            }
         });
 
         assert.equal(
@@ -275,8 +364,34 @@ $(function(){
     QUnit.test('Readonly', function(assert) {
         $b.queryBuilder({
             filters: basic_filters,
-            rules: readonly_rules
+            rules: {
+                condition: 'AND',
+                flags: {
+                    condition_readonly: true
+                },
+                rules: [{
+                    id: 'price',
+                    operator: 'less',
+                    value: 10.25,
+                    flags: {
+                        no_delete: true
+                    }
+                }, {
+                    condition: 'OR',
+                    rules: [{
+                        id: 'id',
+                        operator: 'not_equal',
+                        value: '1234-azer-5678',
+                        readonly: true
+                    }]
+                }]
+            }
         });
+
+        assert.ok(
+            $('#builder_group_0>.rules-group-header input:not(:disabled)').length == 0,
+            'Should disable group condition radio buttons'
+        );
 
         assert.ok(
             $('#builder_rule_0 [data-delete=rule]').length == 0,
@@ -302,7 +417,21 @@ $(function(){
 
         assert.rulesMatch(
             $b.queryBuilder('getRules'),
-            readonly_rules_after,
+            {
+                condition: 'AND',
+                rules: [{
+                    id: 'price',
+                    operator: 'less',
+                    value: 10.25
+                }, {
+                    condition: 'OR',
+                    rules: [{
+                        id: 'id',
+                        operator: 'not_equal',
+                        value: '1234-azer-5678'
+                    }]
+                }]
+            },
             'Should not delete group with readonly rule'
         );
     });
@@ -333,7 +462,26 @@ $(function(){
      */
     QUnit.test('Optgroups', function(assert) {
         $b.queryBuilder({
-            filters: optgroups_filters,
+            filters: [{
+                id: '1',
+                optgroup: 'A'
+            }, {
+                id: '2'
+            }, {
+                id: '3',
+                optgroup: 'A'
+            }, {
+                id: '4',
+                optgroup: 'B'
+            }, {
+                id: '5'
+            }, {
+                id: '6',
+                optgroup: 'A'
+            }, {
+                id: '7',
+                optgroup: 'C'
+            }],
             optgroups: {
                 A: {
                     en: 'AA',
@@ -399,11 +547,18 @@ $(function(){
             'Should return a specific default object'
         );
 
-        QueryBuilder.defaults({ default_rule_flags: new_default_flags });
+        var flags = {
+            filter_readonly: true,
+            operator_readonly: false,
+            value_readonly: true,
+            no_delete: false
+        };
+
+        QueryBuilder.defaults({ default_rule_flags: flags });
 
         assert.deepEqual(
             QueryBuilder.DEFAULTS.default_rule_flags,
-            new_default_flags,
+            flags,
             'Should have modified the default config object'
         );
     });
@@ -444,141 +599,4 @@ $(function(){
             done();
         });
     });
-
-
-    var rules_after_ui_events = {
-        condition: 'OR',
-        rules: [{
-            id: 'name',
-            operator: 'not_equal',
-            value: 'foo'
-        }]
-    };
-
-    var filters_for_custom_operators = [{
-        id: 'name',
-        type: 'string'
-    }, {
-        id: 'price',
-        type: 'double'
-    }, {
-        id: 'release',
-        type: 'date',
-        operators: ['before', 'equal', 'after']
-    }];
-
-    var rules_for_custom_operators = {
-        condition: 'AND',
-        rules: [{
-            id: 'name',
-            operator: 'equal',
-            value: 'foo'
-        }, {
-            id: 'price',
-            operator: 'less',
-            value: 10
-        }, {
-            id: 'release',
-            operator: 'before',
-            value: '1995-5-1'
-        }]
-    };
-
-    var custom_operators = [
-        {type: 'equal',         nb_inputs: 1, apply_to: ['string']},
-        {type: 'not_equal', nb_inputs: 1,    apply_to: ['string']},
-        {type: 'less',            nb_inputs: 1,    apply_to: ['number']},
-        {type: 'greater',     nb_inputs: 1,    apply_to: ['number']},
-        {type: 'before',        nb_inputs: 1,    apply_to: ['datetime']},
-        {type: 'after',         nb_inputs: 1,    apply_to: ['datetime']}
-    ];
-
-    var rules_for_custom_conditions = {
-        condition: 'NAND',
-        rules: [{
-            id: 'name',
-            operator: 'equal',
-            value: 'foo'
-        }, {
-            condition: 'XOR',
-            rules: [{
-                id: 'name',
-                operator: 'equal',
-                value: 'bar'
-            }]
-        }]
-    };
-
-    var icons = {
-        add_group: 'fa fa-plus-circle',
-        add_rule: 'fa fa-plus',
-        remove_rule: 'fa fa-times',
-        remove_group: 'fa fa-times',
-        sort: 'fa fa-sort'
-    };
-
-    var readonly_rules = {
-        condition: 'AND',
-        rules: [{
-            id: 'price',
-            operator: 'less',
-            value: 10.25,
-            flags: {
-                no_delete: true
-            }
-        }, {
-            condition: 'OR',
-            rules: [{
-                id: 'id',
-                operator: 'not_equal',
-                value: '1234-azer-5678',
-                readonly: true
-            }]
-        }]
-    };
-
-    var readonly_rules_after = {
-        condition: 'AND',
-        rules: [{
-            id: 'price',
-            operator: 'less',
-            value: 10.25
-        }, {
-            condition: 'OR',
-            rules: [{
-                id: 'id',
-                operator: 'not_equal',
-                value: '1234-azer-5678'
-            }]
-        }]
-    };
-
-    var optgroups_filters = [{
-        id: '1',
-        optgroup: 'A'
-    }, {
-        id: '2'
-    }, {
-        id: '3',
-        optgroup: 'A'
-    }, {
-        id: '4',
-        optgroup: 'B'
-    }, {
-        id: '5'
-    }, {
-        id: '6',
-        optgroup: 'A'
-    }, {
-        id: '7',
-        optgroup: 'C'
-    }];
-
-    var new_default_flags = {
-        filter_readonly: true,
-        operator_readonly: false,
-        value_readonly: true,
-        no_delete: false
-    };
-
 });

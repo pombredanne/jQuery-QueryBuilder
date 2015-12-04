@@ -180,6 +180,7 @@ QueryBuilder.prototype.getRules = function() {
 
 /**
  * Set rules from object
+ * @throws RulesError, UndefinedConditionError
  * @param data {object}
  */
 QueryBuilder.prototype.setRules = function(data) {
@@ -191,11 +192,13 @@ QueryBuilder.prototype.setRules = function(data) {
     }
 
     if (!data || !data.rules || (data.rules.length===0 && !this.settings.allow_empty)) {
-        Utils.error('Incorrect data object passed');
+        Utils.error('RulesParse', 'Incorrect data object passed');
     }
 
     this.clear();
     this.setRoot(false, data.data);
+    
+    this.model.root.flags = this.parseGroupFlags(data);
 
     data = this.change('setRules', data);
 
@@ -210,7 +213,7 @@ QueryBuilder.prototype.setRules = function(data) {
             data.condition = that.settings.default_condition;
         }
         else if (that.settings.conditions.indexOf(data.condition) == -1) {
-            Utils.error('Invalid condition "{0}"', data.condition);
+            Utils.error('UndefinedCondition', 'Invalid condition "{0}"', data.condition);
         }
 
         group.condition = data.condition;
@@ -220,16 +223,22 @@ QueryBuilder.prototype.setRules = function(data) {
             if (item.rules && item.rules.length>0) {
                 if (that.settings.allow_groups != -1 && that.settings.allow_groups < group.level) {
                     that.reset();
-                    Utils.error('No more than {0} groups are allowed', that.settings.allow_groups);
+                    Utils.error('RulesParse', 'No more than {0} groups are allowed', that.settings.allow_groups);
                 }
                 else {
                     model = that.addGroup(group, false, item.data);
+                    if (model === null) {
+                        return;
+                    }
+                    
+                    model.flags = that.parseGroupFlags(item);
+                    
                     add(item, model);
                 }
             }
             else {
                 if (item.id === undefined) {
-                    Utils.error('Missing rule field id');
+                    Utils.error('RulesParse', 'Missing rule field id');
                 }
                 if (item.operator === undefined) {
                     item.operator = 'equal';
